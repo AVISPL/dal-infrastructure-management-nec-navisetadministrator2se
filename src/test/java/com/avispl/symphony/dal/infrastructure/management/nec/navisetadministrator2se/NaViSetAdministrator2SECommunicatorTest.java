@@ -4,14 +4,19 @@
 
 package com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.avispl.symphony.api.dal.dto.control.AdvancedControllableProperty;
+import com.avispl.symphony.api.dal.dto.control.ControllableProperty;
 import com.avispl.symphony.api.dal.dto.monitor.ExtendedStatistics;
+import com.avispl.symphony.api.dal.dto.monitor.aggregator.AggregatedDevice;
 
 /**
  * NaViSetAdministrator2SECommunicatorTest
@@ -58,5 +63,24 @@ public class NaViSetAdministrator2SECommunicatorTest {
 		Assert.assertEquals("3.0.38", statistics.get("ProjectorProfile"));
 		Assert.assertEquals("2.2.01 (Build 230829)", statistics.get("Version"));
 		Assert.assertEquals("230829", statistics.get("WebBuildNumber"));
+	}
+
+	@Test
+	void testGetMultipleStatistics() throws Exception {
+		naViSetAdministrator2SECommunicator.getMultipleStatistics();
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Thread.sleep(60000);
+		List<AggregatedDevice> aggregatedDeviceList = naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Assert.assertEquals(2, aggregatedDeviceList.size());
+	}
+
+	@Test
+	void testGetMultipleStatisticsWithHistorical() throws Exception {
+		naViSetAdministrator2SECommunicator.setHistoricalProperties("TemperatureIntake(C), TemperatureExhaust(C)");
+		naViSetAdministrator2SECommunicator.getMultipleStatistics();
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Thread.sleep(60000);
+		List<AggregatedDevice> aggregatedDeviceList = naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Assert.assertEquals(3, aggregatedDeviceList.size());
 	}
 }

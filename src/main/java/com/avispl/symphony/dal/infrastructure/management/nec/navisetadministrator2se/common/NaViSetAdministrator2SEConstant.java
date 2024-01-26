@@ -40,13 +40,15 @@ public class NaViSetAdministrator2SEConstant {
 	public static final String PROPERTIES = "properties";
 	public static final String PROP_NAME = "propname";
 	public static final String PROP_VALUE = "propvalue";
-	public static final String CONTROLS = "controls";
+	public static final String LAST_REFRESH = "LastRefresh";
 	public static final String CONTROL = "control";
+	public static final String TIME = "time";
+	public static final String CONTROL_SETTINGS = "Control Settings";
+	public static final String DEVICE_STATUS = "DeviceStatus";
+	public static final String CONTROL_SETTINGS_GROUP = "ControlSettings#";
 	public static final String VCP_VALUE = "vcpvalue";
-	public static final String VCP_CODE = "vcpcode";
-	public static final String READ_ERROR = "readerror";
-	public static final String MAX_VALUE = "maxvalue";
-	public static final String MIN_VALUE = "minvalue";
-	public static final String VALUES = "values";
-	public static final String TYPE = "type";
+	public static final String DEVICE_NAME = "DeviceName";
+	public static final String DEVICE_MODEL = "ModelName";
+	public static final String VIDEO_INPUT = "VideoInput";
+	public static final String POWER_STATE = "PowerState";
 }

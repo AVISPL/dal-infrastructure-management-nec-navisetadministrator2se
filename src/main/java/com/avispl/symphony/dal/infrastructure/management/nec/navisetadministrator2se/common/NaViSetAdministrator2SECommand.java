@@ -18,4 +18,6 @@ public class NaViSetAdministrator2SECommand {
 	public static final String SYSTEM_INFO_COMMAND = "api/about";
 	public static final String DEVICE_TAB_COMMAND = "api/devicetabs?id=%s";
 	public static final String CONTROL_COMMAND = "api/devicecontrol";
+	public static final String DEVICE_STATUS_COMMAND = "api/devicecontrol?id=%s&vcpcode=65545";
+	public static final String DEVICE_INFO_COMMAND = "api/deviceinfo?id=%s";
 }
