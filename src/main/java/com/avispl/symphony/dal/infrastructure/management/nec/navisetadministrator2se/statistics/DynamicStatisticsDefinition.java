@@ -55,6 +55,12 @@ public enum DynamicStatisticsDefinition {
 		return propertyName;
 	}
 
+	/**
+	 * Retrieve a DynamicStatisticsDefinition by its name.
+	 *
+	 * @param name The name to search for.
+	 * @return The DynamicStatisticsDefinition with the specified name, or null if not found.
+	 */
 	public static DynamicStatisticsDefinition getByDefaultName(String name) {
 		Optional<DynamicStatisticsDefinition> property = Arrays.stream(DynamicStatisticsDefinition.values()).filter(item -> item.getDefaultName().equalsIgnoreCase(name)).findFirst();
 		return property.orElse(null);

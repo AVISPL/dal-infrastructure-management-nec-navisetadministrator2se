@@ -49,6 +49,101 @@ import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrato
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.statistics.DynamicStatisticsDefinition;
 import com.avispl.symphony.dal.util.StringUtils;
 
+/**
+ * NaViSetAdministrator2SECommunicator
+ * Supported features are:
+ * Monitoring Aggregator Device:
+ *  <ul>
+ *  <li> - BuildNumber</li>
+ *  <li> - Language</li>
+ *  <li> - LicenseStatus</li>
+ *  <li> - ProjectorProfile</li>
+ *  <li> - Version</li>
+ *  <li> - WebBuildNumber</li>
+ *  <ul>
+ *
+ * General Info Aggregated Device:
+ * <ul>
+ * <li> - AssetTag</li>
+ * <li> - CarbonSavings(kgCO2)</li>
+ * <li> - CarbonSavingsTotal(kgCO2)</li>
+ * <li> - CommunicationLink</li>
+ * <li> - deviceId</li>
+ * <li> - deviceModel</li>
+ * <li> - deviceName</li>
+ * <li> - deviceOnline</li>
+ * <li> - Diagnostics</li>
+ * <li> - FirmwareVersion</li>
+ * <li> - FrequencyHorizontal(kHz)</li>
+ * <li> - FrequencyVertical(Hz)</li>
+ * <li> - IPAddress</li>
+ * <li> - LastRefresh</li>
+ * <li> - MACAddress</li>
+ * <li> - ManufactureDate</li>
+ * <li> - Manufacturer</li>
+ * <li> - PowerOnTime</li>
+ * <li> - SerialNumber</li>
+ * <li> - TemperatureExhaust(C)</li>
+ * <li> - TemperatureIntake(C)</li>
+ * <li> - FrequencyVertical(Hz)</li>
+ * <li> - TimeLampUsage(hours)</li>
+ * <li> - TimePanelUsage(hours)</li>
+ * </ul>
+ *
+ * Audio Group:
+ * <ul>
+ * <li> - Mute</li>
+ * <li> - Volume</li>
+ * </ul>
+ *
+ * ECO Group:
+ * <ul>
+ * <li> - ConstantBrightness</li>
+ * <li> - LightECOMode</li>
+ * <li> - LightModeAdjust</li>
+ * </ul>
+ *
+ * Geometry Group:
+ * <ul>
+ * <li> - AspectRatio</li>
+ * <li> - GeometricCorrectionMode</li>
+ * <li> - HardwareEdgeBlending</li>
+ * <li> - ProjectorOrientation</li>
+ * </ul>
+ *
+ * Other Group:
+ * <ul>
+ * <li> - EntryList</li>
+ * <li> - KeyLock</li>
+ * <li> - MultiWBMode</li>
+ * <li> - RefWBBrightnessB</li>
+ * <li> - RefWBBrightnessG</li>
+ * <li> - RefWBBrightnessR</li>
+ * <li> - RefWBContrastB</li>
+ * <li> - RefWBContrastG</li>
+ * <li> - RefWBContrastR</li>
+ * <li> - RefWBUniformityB</li>
+ * <li> - RefWBUniformityR</li>
+ * </ul>
+ *
+ * Power Group:
+ * <ul>
+ * <li> - FanMode</li>
+ * <li> - SaveLevelInStandbyMode</li>
+ * </ul>
+ *
+ * Video Group:
+ * <ul>
+ * <li> - Input</li>
+ * <li> - OnscreenMute</li>
+ * <li> - PictureFreeze</li>
+ * <li> - PictureMute</li>
+ * <li> - PicturePreset</li>
+ * </ul>
+ * @author Harry / Symphony Dev Team<br>
+ * Created on 1/15/2024
+ * @since 1.0.0
+ */
 
 public class NaViSetAdministrator2SECommunicator extends RestCommunicator implements Aggregator, Monitorable, Controller {
 
@@ -370,7 +465,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 */
 	@Override
 	protected void authenticate() throws Exception {
-
+		// Naviset Administrator 2SE aggregator only require API token for each request.
 	}
 
 	/**
@@ -453,19 +548,19 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * @return the token string
 	 */
 	private String getCookieSession() throws Exception {
-		String token = NaViSetAdministrator2SEConstant.EMPTY;
+		String authenToken = NaViSetAdministrator2SEConstant.EMPTY;
 		try {
 			Map<String, String> credentials = new HashMap<>();
 			credentials.put(NaViSetAdministrator2SEConstant.NAME, this.getLogin());
 			credentials.put(NaViSetAdministrator2SEConstant.PASSWORD, this.getPassword());
 			JsonNode response = this.doPost(NaViSetAdministrator2SECommand.LOGIN_COMMAND, credentials, JsonNode.class);
 			if (response != null && response.has(NaViSetAdministrator2SEConstant.DATA) && response.get(NaViSetAdministrator2SEConstant.DATA).has(NaViSetAdministrator2SEConstant.TOKEN)) {
-				token = response.get(NaViSetAdministrator2SEConstant.DATA).get(NaViSetAdministrator2SEConstant.TOKEN).asText();
+				authenToken = response.get(NaViSetAdministrator2SEConstant.DATA).get(NaViSetAdministrator2SEConstant.TOKEN).asText();
 			}
 		} catch (Exception e) {
 			throw new FailedLoginException("Failed to retrieve the cookie for account with from username and password");
 		}
-		return token;
+		return authenToken;
 	}
 
 	/**
@@ -479,7 +574,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 			return;
 		}
 		for (JsonNode item : response.get(NaViSetAdministrator2SEConstant.DATA)) {
-			if (!NaViSetAdministrator2SEConstant.ZERO.equals(item.get(NaViSetAdministrator2SEConstant.DEVICE_ID).asText())) {
+			if (item.has(NaViSetAdministrator2SEConstant.DEVICE_ID) && !NaViSetAdministrator2SEConstant.ZERO.equals(item.get(NaViSetAdministrator2SEConstant.DEVICE_ID).asText())) {
 				deviceIdList.add(item.get(NaViSetAdministrator2SEConstant.DEVICE_ID).asText());
 			}
 		}
@@ -586,7 +681,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 							String name = getPropertyName(property.get(NaViSetAdministrator2SEConstant.PROP_NAME).asText());
 							String value = property.get(NaViSetAdministrator2SEConstant.PROP_VALUE).asText();
 							ControllablePropertyEnum controllablePropertyEnum = ControllablePropertyEnum.getByDefaultName(name);
-							String group = NaViSetAdministrator2SEConstant.CONTROL_SETTINGS_GROUP;
+							String group = NaViSetAdministrator2SEConstant.OTHER_GROUP;
 							if (controllablePropertyEnum != null) {
 								name = controllablePropertyEnum.getPropertyName();
 								group = controllablePropertyEnum.getGroup();
@@ -605,7 +700,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				putMapIntoCachedData(deviceId, mappingValue);
 			}
 		} catch (Exception e) {
-			logger.debug(String.format("Error when retrieve device info by id is %s", deviceId), e);
+			logger.debug(String.format("Error when retrieve device info by id %s", deviceId), e);
 		}
 	}
 
@@ -624,7 +719,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				putMapIntoCachedData(deviceId, mapValue);
 			}
 		} catch (Exception e) {
-			logger.debug(String.format("Error when retrieve device status with id = %s", deviceId), e);
+			logger.debug(String.format("Error when retrieve device status with id %s", deviceId), e);
 		}
 	}
 
@@ -654,7 +749,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		}
 		input = removeSpace(input.trim());
 		if (input.matches(".*\\([^)]+\\)$")) {
-			return input.replaceFirst("\\([^)]+\\)$", "");
+			return input.replaceFirst("\\([^)]+\\)$", NaViSetAdministrator2SEConstant.EMPTY);
 		}
 		return input;
 	}

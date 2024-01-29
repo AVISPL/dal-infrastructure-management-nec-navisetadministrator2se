@@ -45,7 +45,7 @@ public class NaViSetAdministrator2SEConstant {
 	public static final String TIME = "time";
 	public static final String CONTROL_SETTINGS = "Control Settings";
 	public static final String DEVICE_STATUS = "DeviceStatus";
-	public static final String CONTROL_SETTINGS_GROUP = "ControlSettings#";
+	public static final String OTHER_GROUP = "Other#";
 	public static final String VCP_VALUE = "vcpvalue";
 	public static final String DEVICE_NAME = "DeviceName";
 	public static final String DEVICE_MODEL = "ModelName";

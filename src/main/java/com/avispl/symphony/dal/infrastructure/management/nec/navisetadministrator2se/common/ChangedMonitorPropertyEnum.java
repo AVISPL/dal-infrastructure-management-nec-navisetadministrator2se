@@ -8,14 +8,13 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * ChangedMonitorPropertyEnum
+ * Enumeration representing various changed monitor properties with their default and alternative names.
  *
  * @author Harry / Symphony Dev Team<br>
  * Created on 1/19/2024
  * @since 1.0.0
  */
 public enum ChangedMonitorPropertyEnum {
-	POWER_ON_TIME("PowerOnTime", "PowerOnTime"),
 	LAMP_HOURS_USED("LampHoursUsed", "TimeLampUsage(hours)"),
 	PANEL_HOURS_USED("PanelHoursUsed", "TimePanelUsage(hours)"),
 	TOTAL_POWER_TIME("TotalPowerTime(includingPowerSave)", "PowerTotalTime"),
@@ -59,10 +58,10 @@ public enum ChangedMonitorPropertyEnum {
 	}
 
 	/**
-	 * Gets the {@code ChangedMonitorPropertyEnum} corresponding to the given default name.
+	 * Retrieve a ChangedMonitorPropertyEnum by its name.
 	 *
-	 * @param name The default name to match.
-	 * @return The matching {@code ChangedMonitorPropertyEnum}, or {@code null} if no match is found.
+	 * @param name The default name to search for.
+	 * @return The ChangedMonitorPropertyEnum with the specified default name, or null if not found.
 	 */
 	public static ChangedMonitorPropertyEnum getByDefaultName(String name) {
 		Optional<ChangedMonitorPropertyEnum> property = Arrays.stream(ChangedMonitorPropertyEnum.values()).filter(item -> item.getDefaultName().equalsIgnoreCase(name)).findFirst();
