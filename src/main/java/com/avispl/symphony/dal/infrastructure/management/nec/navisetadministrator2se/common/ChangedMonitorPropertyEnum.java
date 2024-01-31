@@ -15,8 +15,8 @@ import java.util.Optional;
  * @since 1.0.0
  */
 public enum ChangedMonitorPropertyEnum {
-	LAMP_HOURS_USED("LampHoursUsed", "TimeLampUsage(hours)"),
-	PANEL_HOURS_USED("PanelHoursUsed", "TimePanelUsage(hours)"),
+	LAMP_HOURS_USED("LampHoursUsed", "TimeLampUsage(hrs)"),
+	PANEL_HOURS_USED("PanelHoursUsed", "TimePanelUsage(hrs)"),
 	TOTAL_POWER_TIME("TotalPowerTime(includingPowerSave)", "PowerTotalTime"),
 	HORIZONTAL_FREQUENCY("HorizontalFrequency(kHz)", "FrequencyHorizontal(kHz)"),
 	VERTICAL_FREQUENCY("VerticalFrequency(Hz)", "FrequencyVertical(Hz)"),

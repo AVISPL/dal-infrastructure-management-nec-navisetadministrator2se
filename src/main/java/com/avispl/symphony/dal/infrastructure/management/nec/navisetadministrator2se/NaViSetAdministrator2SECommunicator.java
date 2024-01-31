@@ -678,9 +678,9 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 					JsonNode propertiesNode = item.get(NaViSetAdministrator2SEConstant.PROPERTIES);
 					if (NaViSetAdministrator2SEConstant.CONTROL_SETTINGS.equalsIgnoreCase(item.get(NaViSetAdministrator2SEConstant.NAME).asText())) {
 						for (JsonNode property : propertiesNode) {
-							String name = getPropertyName(property.get(NaViSetAdministrator2SEConstant.PROP_NAME).asText());
+							String name = cleanPropertyName(property.get(NaViSetAdministrator2SEConstant.PROP_NAME).asText());
 							String value = property.get(NaViSetAdministrator2SEConstant.PROP_VALUE).asText();
-							ControllablePropertyEnum controllablePropertyEnum = ControllablePropertyEnum.getByDefaultName(name);
+							ControllablePropertyEnum controllablePropertyEnum = ControllablePropertyEnum.getByDefaultName(getPropertyName(name));
 							String group = NaViSetAdministrator2SEConstant.OTHER_GROUP;
 							if (controllablePropertyEnum != null) {
 								name = controllablePropertyEnum.getPropertyName();
@@ -690,7 +690,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 						}
 					} else {
 						for (JsonNode property : propertiesNode) {
-							String name = removeSpace(property.get(NaViSetAdministrator2SEConstant.PROP_NAME).asText());
+							String name = cleanPropertyName(property.get(NaViSetAdministrator2SEConstant.PROP_NAME).asText());
 							String value = property.get(NaViSetAdministrator2SEConstant.PROP_VALUE).asText();
 							mappingValue.put(name, value);
 						}
@@ -729,10 +729,10 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * @param value The string from which spaces are to be removed.
 	 * @return The resulting string with spaces removed.
 	 */
-	private String removeSpace(String value) {
+	private String cleanPropertyName(String value) {
 		return value.replaceAll(NaViSetAdministrator2SEConstant.SPACE, NaViSetAdministrator2SEConstant.EMPTY)
 				.replaceAll(NaViSetAdministrator2SEConstant.HYPHEN, NaViSetAdministrator2SEConstant.EMPTY)
-				.replaceAll("\\.", NaViSetAdministrator2SEConstant.EMPTY);
+				.replace(".", NaViSetAdministrator2SEConstant.EMPTY);
 	}
 
 	/**
@@ -747,7 +747,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		if (input.contains(NaViSetAdministrator2SEConstant.HYPHEN)) {
 			input = input.split(NaViSetAdministrator2SEConstant.HYPHEN)[0];
 		}
-		input = removeSpace(input.trim());
+		input = cleanPropertyName(input.trim());
 		if (input.matches(".*\\([^)]+\\)$")) {
 			return input.replaceFirst("\\([^)]+\\)$", NaViSetAdministrator2SEConstant.EMPTY);
 		}
