@@ -18,8 +18,6 @@ public class NaViSetAdministrator2SEConstant {
 	public static final String AUDIO_GROUP = "Audio#";
 	public static final String OSD_GROUP = "OSD#";
 	public static final String ECO_GROUP = "ECO#";
-	public static final String LABEL_ON = "LabelOn";
-	public static final String LABEL_OFF = "LabelOff";
 	public static final String NONE = "None";
 	public static final String HASH = "#";
 	public static final String EMPTY = "";
@@ -44,11 +42,16 @@ public class NaViSetAdministrator2SEConstant {
 	public static final String CONTROL = "control";
 	public static final String TIME = "time";
 	public static final String CONTROL_SETTINGS = "Control Settings";
-	public static final String DEVICE_STATUS = "DeviceStatus";
-	public static final String OTHER_GROUP = "Other#";
+	public static final String DEVICE_STATUS = "Controls#PowerState";
+	public static final String OTHER_GROUP = "Others#";
+	public static final String CONTROL_GROUP = "Controls#";
 	public static final String VCP_VALUE = "vcpvalue";
 	public static final String DEVICE_NAME = "DeviceName";
 	public static final String DEVICE_MODEL = "ModelName";
-	public static final String VIDEO_INPUT = "VideoInput";
-	public static final String POWER_STATE = "PowerState";
+	public static final String VIDEO_INPUT = "Input";
+	public static final String POWER_STATE = "State";
+	public static final String VALUES = "values";
+	public static final String MIN_VALUE = "minvalue";
+	public static final String MAX_VALUE = "maxvalue";
+	public static final String CURRENT_VALUE = "CurrentValue";
 }

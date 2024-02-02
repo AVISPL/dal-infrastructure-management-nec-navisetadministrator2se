@@ -15,6 +15,7 @@ public class NaViSetAdministrator2SECommand {
 	public static final String LOGIN_COMMAND = "api/authenticate";
 	public static final String DEVICE_ID_COMMAND = "api/tree";
 	public static final String SYSTEM_INFO_COMMAND = "api/about";
-	public static final String DEVICE_STATUS_COMMAND = "api/devicecontrol?id=%s&vcpcode=65545";
-	public static final String DEVICE_INFO_COMMAND = "api/deviceinfo?id=%s";
+	public static final String CONTROL_DATA_COMMAND = "api/devicecontrol?id=%s&vcpcode=%s";
+	public static final String DEVICE_INFO_COMMAND = "api/deviceinfo?id=%s&realtime=2&detail=0";
+	public static final String CONTROL_COMMAND = "api/devicecontrol";
 }

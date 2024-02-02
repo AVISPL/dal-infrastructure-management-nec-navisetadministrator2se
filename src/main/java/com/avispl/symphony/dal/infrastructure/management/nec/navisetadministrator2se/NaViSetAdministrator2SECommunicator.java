@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,10 +31,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.util.CollectionUtils;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import javax.security.auth.login.FailedLoginException;
 
 import com.avispl.symphony.api.dal.control.Controller;
+import com.avispl.symphony.api.dal.dto.control.AdvancedControllableProperty;
 import com.avispl.symphony.api.dal.dto.control.ControllableProperty;
 import com.avispl.symphony.api.dal.dto.monitor.ExtendedStatistics;
 import com.avispl.symphony.api.dal.dto.monitor.Statistics;
@@ -41,11 +46,13 @@ import com.avispl.symphony.api.dal.dto.monitor.aggregator.AggregatedDevice;
 import com.avispl.symphony.api.dal.monitor.Monitorable;
 import com.avispl.symphony.api.dal.monitor.aggregator.Aggregator;
 import com.avispl.symphony.dal.communicator.RestCommunicator;
-import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.ChangedMonitorPropertyEnum;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.ControllablePropertyEnum;
+import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.MonitorPropertyEnum;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.NaViSetAdministrator2SECommand;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.NaViSetAdministrator2SEConstant;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.SystemInformation;
+import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.dto.InputValueDTO;
+import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.dto.VolumeValueDTO;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.statistics.DynamicStatisticsDefinition;
 import com.avispl.symphony.dal.util.StringUtils;
 
@@ -90,55 +97,11 @@ import com.avispl.symphony.dal.util.StringUtils;
  * <li> - TimePanelUsage(hours)</li>
  * </ul>
  *
- * Audio Group:
+ * Controls Group:
  * <ul>
- * <li> - Mute</li>
- * <li> - Volume</li>
- * </ul>
- *
- * ECO Group:
- * <ul>
- * <li> - ConstantBrightness</li>
- * <li> - LightECOMode</li>
- * <li> - LightModeAdjust</li>
- * </ul>
- *
- * Geometry Group:
- * <ul>
- * <li> - AspectRatio</li>
- * <li> - GeometricCorrectionMode</li>
- * <li> - HardwareEdgeBlending</li>
- * <li> - ProjectorOrientation</li>
- * </ul>
- *
- * Other Group:
- * <ul>
- * <li> - EntryList</li>
- * <li> - KeyLock</li>
- * <li> - MultiWBMode</li>
- * <li> - RefWBBrightnessB</li>
- * <li> - RefWBBrightnessG</li>
- * <li> - RefWBBrightnessR</li>
- * <li> - RefWBContrastB</li>
- * <li> - RefWBContrastG</li>
- * <li> - RefWBContrastR</li>
- * <li> - RefWBUniformityB</li>
- * <li> - RefWBUniformityR</li>
- * </ul>
- *
- * Power Group:
- * <ul>
- * <li> - FanMode</li>
- * <li> - SaveLevelInStandbyMode</li>
- * </ul>
- *
- * Video Group:
- * <ul>
- * <li> - Input</li>
- * <li> - OnscreenMute</li>
- * <li> - PictureFreeze</li>
- * <li> - PictureMute</li>
- * <li> - PicturePreset</li>
+ * <li> - AudioMute</li>
+ * <li> - VideoInput</li>
+ * <li> - PowerState</li>
  * </ul>
  * @author Harry / Symphony Dev Team<br>
  * Created on 1/15/2024
@@ -201,7 +164,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 					break loop;
 				}
 				if (flag) {
-					nextDevicesCollectionIterationTimestamp = System.currentTimeMillis() + 60000;
+					nextDevicesCollectionIterationTimestamp = System.currentTimeMillis() + 30000;
 					flag = false;
 				}
 
@@ -243,9 +206,31 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	private Map<String, Map<String, String>> cachedMonitoringDevice = Collections.synchronizedMap(new HashMap<>());
 
 	/**
+	 * A mapper for reading and writing JSON using Jackson library.
+	 * ObjectMapper provides functionality for converting between Java objects and JSON.
+	 * It can be used to serialize objects to JSON format, and deserialize JSON data to objects.
+	 */
+	private final ObjectMapper objectMapper = new ObjectMapper();
+
+	/**
+	 * Synchronized map containing video input values.
+	 */
+	private Map<String, List<InputValueDTO>> videoInputValues = Collections.synchronizedMap(new HashMap<>());
+
+	/**
+	 * Synchronized map containing audio volume values.
+	 */
+	private Map<String, VolumeValueDTO> audioVolumeValues = Collections.synchronizedMap(new HashMap<>());
+
+	/**
 	 * List of aggregated device
 	 */
 	private List<AggregatedDevice> aggregatedDeviceList = Collections.synchronizedList(new ArrayList<>());
+
+	/**
+	 * check control
+	 */
+	private boolean checkControl;
 
 	/**
 	 * Indicates whether a device is considered as paused.
@@ -412,7 +397,77 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 */
 	@Override
 	public void controlProperty(ControllableProperty controllableProperty) throws Exception {
+		String property = controllableProperty.getProperty();
+		String deviceId = controllableProperty.getDeviceId();
+		String value = String.valueOf(controllableProperty.getValue());
 
+		String[] propertyList = property.split(NaViSetAdministrator2SEConstant.HASH);
+		String propertyName = property;
+		if (property.contains(NaViSetAdministrator2SEConstant.HASH)) {
+			propertyName = propertyList[1];
+		}
+		reentrantLock.lock();
+		try {
+			Optional<AggregatedDevice> aggregatedDevice = aggregatedDeviceList.stream().filter(item -> item.getDeviceId().equals(deviceId)).findFirst();
+			if (aggregatedDevice.isPresent()) {
+				Map<String, String> stats = aggregatedDevice.get().getProperties();
+				List<AdvancedControllableProperty> advancedControllableProperties = aggregatedDevice.get().getControllableProperties();
+				ControllablePropertyEnum item = ControllablePropertyEnum.getByDefaultName(propertyName);
+				boolean controlPropagated = true;
+				switch (item) {
+					case VOLUME:
+						value = String.valueOf((int) Float.parseFloat(value));
+						sendControlCommand(deviceId, item.getCode(), propertyName, value, value);
+						stats.put(property + NaViSetAdministrator2SEConstant.CURRENT_VALUE, value);
+						updateCachedValue(deviceId, property, value);
+						checkControl = true;
+						break;
+					case INPUT:
+						List<InputValueDTO> inputValues = videoInputValues.get(deviceId);
+						String requestValue = getValueByName(inputValues, value);
+						if (!NaViSetAdministrator2SEConstant.NONE.equalsIgnoreCase(requestValue)) {
+							sendControlCommand(deviceId, item.getCode(), propertyName, requestValue, value);
+							updateCachedValue(deviceId, property, requestValue);
+							checkControl = true;
+						} else {
+							controlPropagated = false;
+						}
+						break;
+					case POWER:
+						sendControlCommand(deviceId, item.getCode(), propertyName, value, value);
+						updateCachedValue(deviceId, property, value);
+						String audioPropertyName = ControllablePropertyEnum.VOLUME.getGroup() + ControllablePropertyEnum.VOLUME.getPropertyName();
+						if (NaViSetAdministrator2SEConstant.ZERO.equals(value)) {
+							removeValueForTheControllableProperty(stats, advancedControllableProperties, audioPropertyName);
+							stats.remove(audioPropertyName + NaViSetAdministrator2SEConstant.CURRENT_VALUE);
+						} else {
+							retrieveAudioVolume(deviceId);
+							String audioValue = cachedMonitoringDevice.get(deviceId).get(audioPropertyName);
+							VolumeValueDTO volumeValue = audioVolumeValues.get(deviceId);
+							String minValue = volumeValue.getMinValue();
+							String maxValue = volumeValue.getMaxValue();
+							addAdvancedControlProperties(advancedControllableProperties, stats,
+									createSlider(stats, propertyName, minValue, maxValue, Float.parseFloat(minValue), Float.parseFloat(maxValue), Float.parseFloat(audioValue)), audioValue);
+							stats.put(propertyName + "CurrentValue", audioValue);
+						}
+						break;
+					default:
+						if (logger.isWarnEnabled()) {
+							logger.warn(String.format("Unable to execute %s command on device %s: Not Supported", property, deviceId));
+						}
+						controlPropagated = false;
+						break;
+				}
+				if (controlPropagated) {
+					updateLocalControlValue(stats, advancedControllableProperties, property, value);
+					updateListAggregatedDevice(deviceId, stats, advancedControllableProperties);
+				}
+			} else {
+				throw new IllegalArgumentException(String.format("Unable to control property: %s as the device does not exist.", property));
+			}
+		} finally {
+			reentrantLock.unlock();
+		}
 	}
 
 	/**
@@ -581,6 +636,31 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	}
 
 	/**
+	 * Sends a control command to the specified device.
+	 *
+	 * @param deviceId The unique identifier of the target device.
+	 * @param code The VCP code associated with the control property.
+	 * @param name The name of the control property.
+	 * @param value The numerical value to set for the control property.
+	 * @param textValue The textual representation of the value (for error reporting).
+	 * @throws IllegalArgumentException If an error occurs during the control command execution.
+	 */
+	private void sendControlCommand(String deviceId, String code, String name, String value, String textValue) {
+		try {
+			ObjectNode body = objectMapper.createObjectNode();
+			body.put("id", deviceId);
+			body.put("vcpcode", code);
+			body.put("vcpvalue", value);
+			JsonNode response = this.doPut(NaViSetAdministrator2SECommand.CONTROL_COMMAND, (JsonNode) body, JsonNode.class);
+			if (response == null || !response.has(NaViSetAdministrator2SEConstant.DATA)) {
+				throw new IllegalArgumentException("Error setting a control on the device.");
+			}
+		} catch (Exception e) {
+			throw new IllegalArgumentException(String.format("Can't control property %s with value %s", name, textValue), e);
+		}
+	}
+
+	/**
 	 * Retrieves system information using a GET request to the specified command.
 	 * The result is stored in the aggregatorResponse field.
 	 *
@@ -658,7 +738,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 */
 	private void processDeviceId(String deviceId) {
 		retrieveDeviceInfo(deviceId);
-		retrieveDeviceStatus(deviceId);
+		retrieveControlData(deviceId);
 	}
 
 	/**
@@ -680,11 +760,14 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 						for (JsonNode property : propertiesNode) {
 							String name = cleanPropertyName(property.get(NaViSetAdministrator2SEConstant.PROP_NAME).asText());
 							String value = property.get(NaViSetAdministrator2SEConstant.PROP_VALUE).asText();
-							ControllablePropertyEnum controllablePropertyEnum = ControllablePropertyEnum.getByDefaultName(getPropertyName(name));
+							MonitorPropertyEnum monitorPropertyEnum = MonitorPropertyEnum.getByDefaultName(getPropertyName(name));
 							String group = NaViSetAdministrator2SEConstant.OTHER_GROUP;
-							if (controllablePropertyEnum != null) {
-								name = controllablePropertyEnum.getPropertyName();
-								group = controllablePropertyEnum.getGroup();
+							if (monitorPropertyEnum != null) {
+								if (monitorPropertyEnum == MonitorPropertyEnum.POWER_STATE || monitorPropertyEnum == MonitorPropertyEnum.VIDEO_INPUT || monitorPropertyEnum == MonitorPropertyEnum.AUDIO_VOLUME) {
+									continue;
+								}
+								name = monitorPropertyEnum.getPropertyName();
+								group = monitorPropertyEnum.getGroup();
 							}
 							mappingValue.put(group + name, value);
 						}
@@ -696,7 +779,6 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 						}
 					}
 				}
-				cachedMonitoringDevice.remove(deviceId);
 				putMapIntoCachedData(deviceId, mappingValue);
 			}
 		} catch (Exception e) {
@@ -705,21 +787,62 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	}
 
 	/**
-	 * Retrieves the status of a device with the specified ID.
+	 * Retrieves control data for the specified device and updates the cached values accordingly.
 	 *
-	 * @param deviceId The unique identifier of the device.
+	 * @param deviceId The identifier of the device.
 	 */
-	private void retrieveDeviceStatus(String deviceId) {
+	private void retrieveControlData(String deviceId) {
+		for (ControllablePropertyEnum item : ControllablePropertyEnum.values()) {
+			try {
+				JsonNode response = this.doGet(String.format(NaViSetAdministrator2SECommand.CONTROL_DATA_COMMAND, deviceId, item.getCode()), JsonNode.class);
+				if (response != null && response.has(NaViSetAdministrator2SEConstant.DATA) && response.get(NaViSetAdministrator2SEConstant.DATA).has(NaViSetAdministrator2SEConstant.CONTROL)) {
+					JsonNode nodeInfo = response.get(NaViSetAdministrator2SEConstant.DATA).get(NaViSetAdministrator2SEConstant.CONTROL);
+					Map<String, String> mapValue = new HashMap<>();
+					mapValue.put(item.getGroup() + item.getPropertyName(), nodeInfo.get(NaViSetAdministrator2SEConstant.VCP_VALUE).asText());
+					putMapIntoCachedData(deviceId, mapValue);
+					switch (item) {
+						case INPUT:
+							List<InputValueDTO> values = objectMapper.readValue(nodeInfo.get(NaViSetAdministrator2SEConstant.VALUES).toString(), new TypeReference<List<InputValueDTO>>() {
+							});
+							videoInputValues.put(deviceId, values);
+							break;
+						case VOLUME:
+							String minValue = nodeInfo.get(NaViSetAdministrator2SEConstant.MIN_VALUE).asText();
+							String maxValue = nodeInfo.get(NaViSetAdministrator2SEConstant.MAX_VALUE).asText();
+							audioVolumeValues.put(deviceId, new VolumeValueDTO(minValue, maxValue));
+							break;
+						default:
+							break;
+					}
+				}
+				//Sleep after sending request
+				Thread.sleep(1000);
+			} catch (Exception e) {
+				logger.debug(String.format("Error when retrieve %s with id %s", item.getPropertyName(), deviceId), e);
+			}
+		}
+	}
+
+	/**
+	 * Retrieves audio volume information for the specified device and updates the cached data.
+	 *
+	 * @param deviceId The identifier of the device.
+	 */
+	private void retrieveAudioVolume(String deviceId) {
 		try {
-			JsonNode response = this.doGet(String.format(NaViSetAdministrator2SECommand.DEVICE_STATUS_COMMAND, deviceId), JsonNode.class);
+			JsonNode response = this.doGet(String.format(NaViSetAdministrator2SECommand.CONTROL_DATA_COMMAND, deviceId, ControllablePropertyEnum.VOLUME.getCode()), JsonNode.class);
 			if (response != null && response.has(NaViSetAdministrator2SEConstant.DATA) && response.get(NaViSetAdministrator2SEConstant.DATA).has(NaViSetAdministrator2SEConstant.CONTROL)) {
 				JsonNode nodeInfo = response.get(NaViSetAdministrator2SEConstant.DATA).get(NaViSetAdministrator2SEConstant.CONTROL);
 				Map<String, String> mapValue = new HashMap<>();
-				mapValue.put(NaViSetAdministrator2SEConstant.DEVICE_STATUS, nodeInfo.get(NaViSetAdministrator2SEConstant.VCP_VALUE).asText());
+				mapValue.put(ControllablePropertyEnum.VOLUME.getGroup() + ControllablePropertyEnum.VOLUME.getPropertyName(), nodeInfo.get(NaViSetAdministrator2SEConstant.VCP_VALUE).asText());
 				putMapIntoCachedData(deviceId, mapValue);
+				String minValue = nodeInfo.get(NaViSetAdministrator2SEConstant.MIN_VALUE).asText();
+				String maxValue = nodeInfo.get(NaViSetAdministrator2SEConstant.MAX_VALUE).asText();
+				audioVolumeValues.put(deviceId, new VolumeValueDTO(minValue, maxValue));
 			}
-		} catch (Exception e) {
-			logger.debug(String.format("Error when retrieve device status with id %s", deviceId), e);
+		} catch (
+				Exception e) {
+			logger.debug(String.format("Error when retrieve %s with id %s", ControllablePropertyEnum.VOLUME.getPropertyName(), deviceId), e);
 		}
 	}
 
@@ -779,34 +902,81 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * @return The updated aggregatedDeviceList with the latest device information.
 	 */
 	private List<AggregatedDevice> cloneAndPopulateAggregatedDeviceList() {
-		synchronized (aggregatedDeviceList) {
-			aggregatedDeviceList.clear();
-			cachedMonitoringDevice.forEach((key, value) -> {
-				AggregatedDevice aggregatedDevice = new AggregatedDevice();
-				Map<String, String> cachedData = cachedMonitoringDevice.get(key);
-				String deviceName = findValueByPartialKey(cachedData, NaViSetAdministrator2SEConstant.DEVICE_NAME);
-				String modelName = findValueByPartialKey(cachedData, NaViSetAdministrator2SEConstant.DEVICE_MODEL);
-				String deviceStatus = findValueByPartialKey(cachedData, NaViSetAdministrator2SEConstant.DEVICE_STATUS);
-				aggregatedDevice.setDeviceId(key);
-				aggregatedDevice.setDeviceOnline(false);
-				if (deviceStatus != null) {
-					aggregatedDevice.setDeviceOnline(NaViSetAdministrator2SEConstant.NUMBER_ONE.equals(deviceStatus));
-				}
-				if (deviceName != null) {
-					aggregatedDevice.setDeviceName(deviceName);
-				}
-				if (modelName != null) {
-					aggregatedDevice.setDeviceModel(modelName);
-				}
-				Map<String, String> stats = new HashMap<>();
-				Map<String, String> dynamicStats = new HashMap<>();
-				populateMonitorProperties(cachedData, stats, dynamicStats);
-				aggregatedDevice.setProperties(stats);
-				aggregatedDevice.setDynamicStatistics(dynamicStats);
-				aggregatedDeviceList.add(aggregatedDevice);
-			});
+		if (!checkControl) {
+			synchronized (aggregatedDeviceList) {
+				aggregatedDeviceList.clear();
+				cachedMonitoringDevice.forEach((key, value) -> {
+					AggregatedDevice aggregatedDevice = new AggregatedDevice();
+					Map<String, String> cachedData = cachedMonitoringDevice.get(key);
+					String deviceName = findValueByPartialKey(cachedData, NaViSetAdministrator2SEConstant.DEVICE_NAME);
+					String modelName = findValueByPartialKey(cachedData, NaViSetAdministrator2SEConstant.DEVICE_MODEL);
+					String deviceStatus = cachedData.get(NaViSetAdministrator2SEConstant.DEVICE_STATUS);
+					aggregatedDevice.setDeviceId(key);
+					aggregatedDevice.setDeviceOnline(false);
+					if (deviceStatus != null) {
+						aggregatedDevice.setDeviceOnline(NaViSetAdministrator2SEConstant.NUMBER_ONE.equals(deviceStatus));
+					}
+					if (deviceName != null) {
+						aggregatedDevice.setDeviceName(deviceName);
+					}
+					if (modelName != null) {
+						aggregatedDevice.setDeviceModel(modelName);
+					}
+					Map<String, String> stats = new HashMap<>();
+					Map<String, String> dynamicStats = new HashMap<>();
+					List<AdvancedControllableProperty> advancedControllableProperties = new ArrayList<>();
+					populateMonitorProperties(cachedData, stats, dynamicStats);
+					populateControlProperties(key, cachedData, stats, advancedControllableProperties);
+					aggregatedDevice.setProperties(stats);
+					aggregatedDevice.setControllableProperties(advancedControllableProperties);
+					aggregatedDevice.setDynamicStatistics(dynamicStats);
+					aggregatedDeviceList.add(aggregatedDevice);
+				});
+			}
 		}
+		checkControl = false;
 		return aggregatedDeviceList;
+	}
+
+	/**
+	 * Populates control properties for the specified device based on cached data, statistics, and advanced controllable properties.
+	 *
+	 * @param deviceId The identifier of the device.
+	 * @param cachedData The cached data for the device.
+	 * @param stats The statistics for the device.
+	 * @param advancedControllableProperties The list of advanced controllable properties to be populated.
+	 */
+	private void populateControlProperties(String deviceId, Map<String, String> cachedData, Map<String, String> stats, List<AdvancedControllableProperty> advancedControllableProperties) {
+		for (ControllablePropertyEnum item : ControllablePropertyEnum.values()) {
+			String propertyName = item.getGroup() + item.getPropertyName();
+			String value = getDefaultValueForNullData(cachedData.get(propertyName));
+			if (!NaViSetAdministrator2SEConstant.NONE.equalsIgnoreCase(value)) {
+				switch (item) {
+					case POWER:
+						int status = NaViSetAdministrator2SEConstant.NUMBER_ONE.equals(value) ? 1 : 0;
+						addAdvancedControlProperties(advancedControllableProperties, stats, createSwitch(propertyName, status, NaViSetAdministrator2SEConstant.OFF, NaViSetAdministrator2SEConstant.ON),
+								String.valueOf(status));
+						break;
+					case INPUT:
+						List<InputValueDTO> values = videoInputValues.get(deviceId);
+						String newValue = getNameByValue(values, value);
+						addAdvancedControlProperties(advancedControllableProperties, stats, createDropdown(propertyName, getAllNames(values), newValue), newValue);
+						break;
+					case VOLUME:
+						if (NaViSetAdministrator2SEConstant.NUMBER_ONE.equalsIgnoreCase(getDefaultValueForNullData(cachedData.get(NaViSetAdministrator2SEConstant.DEVICE_STATUS)))) {
+							VolumeValueDTO volumeValue = audioVolumeValues.get(deviceId);
+							String minValue = volumeValue.getMinValue();
+							String maxValue = volumeValue.getMaxValue();
+							addAdvancedControlProperties(advancedControllableProperties, stats,
+									createSlider(stats, propertyName, minValue, maxValue, Float.parseFloat(minValue), Float.parseFloat(maxValue), Float.parseFloat(value)), value);
+							stats.put(propertyName + NaViSetAdministrator2SEConstant.CURRENT_VALUE, value);
+						} else {
+							stats.remove(propertyName);
+						}
+						break;
+				}
+			}
+		}
 	}
 
 	/**
@@ -834,7 +1004,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 					stats.put(propertyName, getDefaultValueForNullData(propertyValue));
 				}
 			} else {
-				ChangedMonitorPropertyEnum propertyEnum = ChangedMonitorPropertyEnum.getByDefaultName(key);
+				MonitorPropertyEnum propertyEnum = MonitorPropertyEnum.getByDefaultName(key);
 				if (propertyEnum != null) {
 					key = propertyEnum.getPropertyName();
 				}
@@ -843,6 +1013,40 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				}
 			}
 		});
+	}
+
+	/**
+	 * Retrieves the name associated with the specified value from the list of {@code InputValueDTO} objects.
+	 *
+	 * @param objectList The list of {@code InputValueDTO} objects.
+	 * @param targetValue The target value for which the corresponding name is to be retrieved.
+	 * @return The name associated with the specified value, or {@link NaViSetAdministrator2SEConstant#NONE} if not found.
+	 */
+	private String getNameByValue(List<InputValueDTO> objectList, String targetValue) {
+		return objectList.stream().filter(item -> item.getValue().equals(targetValue))
+				.findFirst().map(InputValueDTO::getName).orElse(NaViSetAdministrator2SEConstant.NONE);
+	}
+
+	/**
+	 * Retrieves the value associated with the specified name from the list of {@code InputValueDTO} objects.
+	 *
+	 * @param objectList The list of {@code InputValueDTO} objects.
+	 * @param targetName The target name for which the corresponding value is to be retrieved.
+	 * @return The value associated with the specified name, or {@link NaViSetAdministrator2SEConstant#NONE} if not found.
+	 */
+	private String getValueByName(List<InputValueDTO> objectList, String targetName) {
+		return objectList.stream().filter(item -> item.getName().equals(targetName))
+				.findFirst().map(InputValueDTO::getValue).orElse(NaViSetAdministrator2SEConstant.NONE);
+	}
+
+	/**
+	 * Retrieves an array containing all names from the list of {@code InputValueDTO} objects.
+	 *
+	 * @param objectList The list of {@code InputValueDTO} objects.
+	 * @return An array containing all names from the list.
+	 */
+	private String[] getAllNames(List<InputValueDTO> objectList) {
+		return objectList.stream().map(InputValueDTO::getName).toArray(String[]::new);
 	}
 
 	/**
@@ -892,5 +1096,144 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 */
 	private String getDefaultValueForNullData(String value) {
 		return StringUtils.isNotNullOrEmpty(value) ? value : NaViSetAdministrator2SEConstant.NONE;
+	}
+
+	/**
+	 * Updates the cached value for a specific device with the given name and value.
+	 *
+	 * @param deviceId The identifier of the device.
+	 * @param name The name associated with the value.
+	 * @param value The new value to be updated.
+	 */
+	private void updateCachedValue(String deviceId, String name, String value) {
+		cachedMonitoringDevice.computeIfPresent(deviceId, (key, map) -> {
+			map.put(name, value);
+			return map;
+		});
+	}
+
+	/**
+	 * Updates cached devices' control value, after the control command was executed with the specified value.
+	 * It is done in order for aggregator to populate the latest control values, after the control command has been executed,
+	 * but before the next devices details polling cycle was addressed.
+	 *
+	 * @param stats The updated device properties.
+	 * @param advancedControllableProperties The updated list of advanced controllable properties.
+	 * @param name of the control property
+	 * @param value to set to the control property
+	 */
+	private void updateLocalControlValue(Map<String, String> stats, List<AdvancedControllableProperty> advancedControllableProperties, String name, String value) {
+		stats.put(name, value);
+		advancedControllableProperties.stream().filter(advancedControllableProperty ->
+				name.equals(advancedControllableProperty.getName())).findFirst().ifPresent(advancedControllableProperty ->
+				advancedControllableProperty.setValue(value));
+	}
+
+	/**
+	 * Updates the properties and controllable properties of an aggregated device in the list.
+	 *
+	 * @param deviceId The unique identifier of the device to update.
+	 * @param stats The updated device properties.
+	 * @param advancedControllableProperties The updated list of advanced controllable properties.
+	 */
+	private void updateListAggregatedDevice(String deviceId, Map<String, String> stats, List<AdvancedControllableProperty> advancedControllableProperties) {
+		Optional<AggregatedDevice> device = aggregatedDeviceList.stream().filter(aggregatedDevice ->
+				deviceId.equals(aggregatedDevice.getDeviceId())).findFirst();
+		if (device.isPresent()) {
+			device.get().setControllableProperties(advancedControllableProperties);
+			device.get().setProperties(stats);
+		}
+	}
+
+	/**
+	 * Removes a controllable property and its associated value from the provided statistics and advanced controllable properties lists.
+	 *
+	 * @param stats The statistics map containing property values.
+	 * @param advancedControllableProperties The list of advanced controllable properties.
+	 * @param name The name of the property to remove.
+	 */
+	private void removeValueForTheControllableProperty(Map<String, String> stats, List<AdvancedControllableProperty> advancedControllableProperties, String name) {
+		stats.remove(name);
+		advancedControllableProperties.removeIf(item -> item.getName().equalsIgnoreCase(name));
+	}
+
+	/**
+	 * Add addAdvancedControlProperties if advancedControllableProperties different empty
+	 *
+	 * @param advancedControllableProperties advancedControllableProperties is the list that store all controllable properties
+	 * @param stats store all statistics
+	 * @param property the property is item advancedControllableProperties
+	 * @throws IllegalStateException when exception occur
+	 */
+	private void addAdvancedControlProperties(List<AdvancedControllableProperty> advancedControllableProperties, Map<String, String> stats, AdvancedControllableProperty property, String value) {
+		if (property != null) {
+			for (AdvancedControllableProperty controllableProperty : advancedControllableProperties) {
+				if (controllableProperty.getName().equals(property.getName())) {
+					advancedControllableProperties.remove(controllableProperty);
+					break;
+				}
+			}
+			if (StringUtils.isNotNullOrEmpty(value)) {
+				stats.put(property.getName(), value);
+			} else {
+				stats.put(property.getName(), NaViSetAdministrator2SEConstant.EMPTY);
+			}
+			advancedControllableProperties.add(property);
+		}
+	}
+
+	/***
+	 * Create AdvancedControllableProperty slider instance
+	 *
+	 * @param stats extended statistics
+	 * @param name name of the control
+	 * @param initialValue initial value of the control
+	 * @return AdvancedControllableProperty slider instance
+	 */
+	private AdvancedControllableProperty createSlider(Map<String, String> stats, String name, String labelStart, String labelEnd, Float rangeStart, Float rangeEnd, Float initialValue) {
+		stats.put(name, initialValue.toString());
+		AdvancedControllableProperty.Slider slider = new AdvancedControllableProperty.Slider();
+		slider.setLabelStart(labelStart);
+		slider.setLabelEnd(labelEnd);
+		slider.setRangeStart(rangeStart);
+		slider.setRangeEnd(rangeEnd);
+
+		return new AdvancedControllableProperty(name, new Date(), slider, initialValue);
+	}
+
+	/***
+	 * Create dropdown advanced controllable property
+	 *
+	 * @param name the name of the control
+	 * @param initialValue initial value of the control
+	 * @return AdvancedControllableProperty dropdown instance
+	 */
+	private AdvancedControllableProperty createDropdown(String name, String[] values, String initialValue) {
+		AdvancedControllableProperty.DropDown dropDown = new AdvancedControllableProperty.DropDown();
+		dropDown.setOptions(values);
+		dropDown.setLabels(values);
+
+		return new AdvancedControllableProperty(name, new Date(), dropDown, initialValue);
+	}
+
+	/**
+	 * Create switch is control property for metric
+	 *
+	 * @param name the name of property
+	 * @param status initial status (0|1)
+	 * @return AdvancedControllableProperty switch instance
+	 */
+	private AdvancedControllableProperty createSwitch(String name, int status, String labelOff, String labelOn) {
+		AdvancedControllableProperty.Switch toggle = new AdvancedControllableProperty.Switch();
+		toggle.setLabelOff(labelOff);
+		toggle.setLabelOn(labelOn);
+
+		AdvancedControllableProperty advancedControllableProperty = new AdvancedControllableProperty();
+		advancedControllableProperty.setName(name);
+		advancedControllableProperty.setValue(status);
+		advancedControllableProperty.setType(toggle);
+		advancedControllableProperty.setTimestamp(new Date());
+
+		return advancedControllableProperty;
 	}
 }

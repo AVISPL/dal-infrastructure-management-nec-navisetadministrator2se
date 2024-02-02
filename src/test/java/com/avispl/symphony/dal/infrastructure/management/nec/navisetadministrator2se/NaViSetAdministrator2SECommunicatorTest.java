@@ -13,6 +13,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.avispl.symphony.api.dal.dto.control.AdvancedControllableProperty;
+import com.avispl.symphony.api.dal.dto.control.ControllableProperty;
 import com.avispl.symphony.api.dal.dto.monitor.ExtendedStatistics;
 import com.avispl.symphony.api.dal.dto.monitor.aggregator.AggregatedDevice;
 
@@ -248,5 +250,68 @@ public class NaViSetAdministrator2SECommunicatorTest {
 			Assert.assertEquals("Unmute", stats.get("PictureMute"));
 			Assert.assertEquals("Presentation", stats.get("PicturePreset"));
 		}
+	}
+
+	@Test
+	void testVolumeControl() throws Exception {
+		naViSetAdministrator2SECommunicator.getMultipleStatistics();
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Thread.sleep(60000);
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		ControllableProperty controllableProperty = new ControllableProperty();
+		String property = "Controls#AudioVolume";
+		String value = "16.0";
+		String deviceId = "4";
+		controllableProperty.setProperty(property);
+		controllableProperty.setValue(value);
+		controllableProperty.setDeviceId(deviceId);
+		naViSetAdministrator2SECommunicator.controlProperty(controllableProperty);
+
+		List<AggregatedDevice> aggregatedDeviceList = naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Optional<AdvancedControllableProperty> advancedControllableProperty = aggregatedDeviceList.get(1).getControllableProperties().stream().filter(item ->
+				property.equals(item.getName())).findFirst();
+		Assert.assertEquals(value, advancedControllableProperty.get().getValue());
+	}
+
+	@Test
+	void testPowerControl() throws Exception {
+		naViSetAdministrator2SECommunicator.getMultipleStatistics();
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Thread.sleep(60000);
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		ControllableProperty controllableProperty = new ControllableProperty();
+		String property = "Controls#PowerState";
+		String value = "1";
+		String deviceId = "4";
+		controllableProperty.setProperty(property);
+		controllableProperty.setValue(value);
+		controllableProperty.setDeviceId(deviceId);
+		naViSetAdministrator2SECommunicator.controlProperty(controllableProperty);
+
+		List<AggregatedDevice> aggregatedDeviceList = naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Optional<AdvancedControllableProperty> advancedControllableProperty = aggregatedDeviceList.get(1).getControllableProperties().stream().filter(item ->
+				property.equals(item.getName())).findFirst();
+		Assert.assertEquals(value, advancedControllableProperty.get().getValue());
+	}
+
+	@Test
+	void testVideoInput() throws Exception {
+		naViSetAdministrator2SECommunicator.getMultipleStatistics();
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Thread.sleep(60000);
+		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		ControllableProperty controllableProperty = new ControllableProperty();
+		String property = "Controls#VideoInput";
+		String value = "1";
+		String deviceId = "4";
+		controllableProperty.setProperty(property);
+		controllableProperty.setValue(value);
+		controllableProperty.setDeviceId(deviceId);
+		naViSetAdministrator2SECommunicator.controlProperty(controllableProperty);
+
+		List<AggregatedDevice> aggregatedDeviceList = naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
+		Optional<AdvancedControllableProperty> advancedControllableProperty = aggregatedDeviceList.get(1).getControllableProperties().stream().filter(item ->
+				property.equals(item.getName())).findFirst();
+		Assert.assertEquals(value, advancedControllableProperty.get().getValue());
 	}
 }
