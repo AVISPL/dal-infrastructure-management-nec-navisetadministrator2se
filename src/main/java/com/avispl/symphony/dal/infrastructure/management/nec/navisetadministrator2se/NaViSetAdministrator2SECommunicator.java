@@ -228,9 +228,14 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	private List<AggregatedDevice> aggregatedDeviceList = Collections.synchronizedList(new ArrayList<>());
 
 	/**
-	 * check control
+	 * start index
 	 */
-	private boolean checkControl;
+	private int startIndex = NaViSetAdministrator2SEConstant.START_INDEX;
+
+	/**
+	 * end index
+	 */
+	private int endIndex = NaViSetAdministrator2SEConstant.NUMBER_DEVICE_IN_INTERVAL;
 
 	/**
 	 * Indicates whether a device is considered as paused.
@@ -420,7 +425,6 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 						sendControlCommand(deviceId, item.getCode(), propertyName, value, value);
 						stats.put(property + NaViSetAdministrator2SEConstant.CURRENT_VALUE, value);
 						updateCachedValue(deviceId, property, value);
-						checkControl = true;
 						break;
 					case INPUT:
 						List<InputValueDTO> inputValues = videoInputValues.get(deviceId);
@@ -428,9 +432,8 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 						if (!NaViSetAdministrator2SEConstant.NONE.equalsIgnoreCase(requestValue)) {
 							sendControlCommand(deviceId, item.getCode(), propertyName, requestValue, value);
 							updateCachedValue(deviceId, property, requestValue);
-							checkControl = true;
 						} else {
-							controlPropagated = false;
+							throw new IllegalArgumentException(String.format("Can't control property %s with value %s", propertyName, value));
 						}
 						break;
 					case POWER:
@@ -441,6 +444,8 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 							removeValueForTheControllableProperty(stats, advancedControllableProperties, audioPropertyName);
 							stats.remove(audioPropertyName + NaViSetAdministrator2SEConstant.CURRENT_VALUE);
 						} else {
+							//Waiting for device change status
+							Thread.sleep(1000);
 							retrieveAudioVolume(deviceId);
 							String audioValue = cachedMonitoringDevice.get(deviceId).get(audioPropertyName);
 							VolumeValueDTO volumeValue = audioVolumeValues.get(deviceId);
@@ -448,7 +453,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 							String maxValue = volumeValue.getMaxValue();
 							addAdvancedControlProperties(advancedControllableProperties, stats,
 									createSlider(stats, propertyName, minValue, maxValue, Float.parseFloat(minValue), Float.parseFloat(maxValue), Float.parseFloat(audioValue)), audioValue);
-							stats.put(propertyName + "CurrentValue", audioValue);
+							stats.put(propertyName + NaViSetAdministrator2SEConstant.CURRENT_VALUE, audioValue);
 						}
 						break;
 					default:
@@ -702,14 +707,25 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		ExecutorService executorServiceForRetrieveAggregatedData = Executors.newFixedThreadPool(numberOfThreads);
 		List<Future<?>> futures = new ArrayList<>();
 
+		if (endIndex > deviceIdList.size()) {
+			endIndex = deviceIdList.size();
+		}
 		synchronized (deviceIdList) {
-			for (String deviceId : deviceIdList) {
-				Future<?> future = executorServiceForRetrieveAggregatedData.submit(() -> processDeviceId(deviceId));
+			for (int i = startIndex; i < endIndex; i++) {
+				int index = i;
+				Future<?> future = executorServiceForRetrieveAggregatedData.submit(() -> processDeviceId(deviceIdList.get(index)));
 				futures.add(future);
 			}
 		}
 		waitForFutures(futures, executorServiceForRetrieveAggregatedData);
 		executorServiceForRetrieveAggregatedData.shutdown();
+		if (endIndex == deviceIdList.size()) {
+			startIndex = NaViSetAdministrator2SEConstant.START_INDEX;
+			endIndex = NaViSetAdministrator2SEConstant.NUMBER_DEVICE_IN_INTERVAL;
+		} else {
+			startIndex = endIndex;
+			endIndex += NaViSetAdministrator2SEConstant.NUMBER_DEVICE_IN_INTERVAL;
+		}
 	}
 
 	/**
@@ -840,8 +856,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				String maxValue = nodeInfo.get(NaViSetAdministrator2SEConstant.MAX_VALUE).asText();
 				audioVolumeValues.put(deviceId, new VolumeValueDTO(minValue, maxValue));
 			}
-		} catch (
-				Exception e) {
+		} catch (Exception e) {
 			logger.debug(String.format("Error when retrieve %s with id %s", ControllablePropertyEnum.VOLUME.getPropertyName(), deviceId), e);
 		}
 	}
@@ -902,7 +917,6 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * @return The updated aggregatedDeviceList with the latest device information.
 	 */
 	private List<AggregatedDevice> cloneAndPopulateAggregatedDeviceList() {
-		if (!checkControl) {
 			synchronized (aggregatedDeviceList) {
 				aggregatedDeviceList.clear();
 				cachedMonitoringDevice.forEach((key, value) -> {
@@ -933,8 +947,6 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 					aggregatedDeviceList.add(aggregatedDevice);
 				});
 			}
-		}
-		checkControl = false;
 		return aggregatedDeviceList;
 	}
 

@@ -54,4 +54,6 @@ public class NaViSetAdministrator2SEConstant {
 	public static final String MIN_VALUE = "minvalue";
 	public static final String MAX_VALUE = "maxvalue";
 	public static final String CURRENT_VALUE = "CurrentValue";
+	public static final int START_INDEX = 0;
+	public static final int NUMBER_DEVICE_IN_INTERVAL = 16;
 }

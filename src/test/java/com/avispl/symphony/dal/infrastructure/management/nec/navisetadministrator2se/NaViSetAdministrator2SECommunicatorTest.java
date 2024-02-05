@@ -111,12 +111,12 @@ public class NaViSetAdministrator2SECommunicatorTest {
 	 */
 	@Test
 	void testGetMultipleStatisticsWithOtherHistorical() throws Exception {
-		naViSetAdministrator2SECommunicator.setHistoricalProperties("TemperatureSensor1(C), TemperatureSensor2(C)");
+		naViSetAdministrator2SECommunicator.setHistoricalProperties("TemperatureSensor1(C), TemperatureSensor2(C),TemperatureIntake(C), TemperatureExhaust(C)");
 		naViSetAdministrator2SECommunicator.getMultipleStatistics();
 		naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
 		Thread.sleep(30000);
 		List<AggregatedDevice> aggregatedDeviceList = naViSetAdministrator2SECommunicator.retrieveMultipleStatistics();
-		Assert.assertEquals(3, aggregatedDeviceList.size());
+		Assert.assertEquals(2, aggregatedDeviceList.size());
 	}
 
 	/**
@@ -282,7 +282,7 @@ public class NaViSetAdministrator2SECommunicatorTest {
 		ControllableProperty controllableProperty = new ControllableProperty();
 		String property = "Controls#PowerState";
 		String value = "1";
-		String deviceId = "4";
+		String deviceId = "7";
 		controllableProperty.setProperty(property);
 		controllableProperty.setValue(value);
 		controllableProperty.setDeviceId(deviceId);
