@@ -238,6 +238,11 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	private int endIndex = NaViSetAdministrator2SEConstant.NUMBER_DEVICE_IN_INTERVAL;
 
 	/**
+	 * number of threads
+	 */
+	private String numberThreads;
+
+	/**
 	 * Indicates whether a device is considered as paused.
 	 * True by default so if the system is rebooted and the actual value is lost -> the device won't start stats
 	 * collection unless the {@link NaViSetAdministrator2SECommunicator#retrieveMultipleStatistics()} method is called which will change it
@@ -285,6 +290,24 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * API Token
 	 */
 	private String token;
+
+	/**
+	 * Retrieves {@link #numberThreads}
+	 *
+	 * @return value of {@link #numberThreads}
+	 */
+	public String getNumberThreads() {
+		return numberThreads;
+	}
+
+	/**
+	 * Sets {@link #numberThreads} value
+	 *
+	 * @param numberThreads new value of {@link #numberThreads}
+	 */
+	public void setNumberThreads(String numberThreads) {
+		this.numberThreads = numberThreads;
+	}
 
 	/**
 	 * Configurable property for historical properties, comma separated values kept as set locally
@@ -591,7 +614,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 			response = this.doGet(NaViSetAdministrator2SECommand.DEVICE_ID_COMMAND, JsonNode.class);
 		} catch (FailedLoginException e) {
 			token = getCookieSession();
-			if (NaViSetAdministrator2SEConstant.EMPTY.equals(token)) {
+			if (StringUtils.isNullOrEmpty(token)) {
 				return false;
 			}
 		}
@@ -703,7 +726,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * The results are printed to the console, and the thread pool is shutdown upon completion.
 	 */
 	private void populateDeviceDetails() {
-		int numberOfThreads = 8;
+		int numberOfThreads = getDefaultNumberOfThread();
 		ExecutorService executorServiceForRetrieveAggregatedData = Executors.newFixedThreadPool(numberOfThreads);
 		List<Future<?>> futures = new ArrayList<>();
 
@@ -739,7 +762,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 			try {
 				future.get();
 			} catch (Exception e) {
-				e.printStackTrace();
+				logger.error("An exception occurred while waiting for a future to complete.", e);
 			}
 		}
 		executorService.shutdown();
@@ -798,7 +821,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				putMapIntoCachedData(deviceId, mappingValue);
 			}
 		} catch (Exception e) {
-			logger.debug(String.format("Error when retrieve device info by id %s", deviceId), e);
+			logger.error(String.format("Error when retrieve device info by id %s", deviceId), e);
 		}
 	}
 
@@ -834,7 +857,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				//Sleep after sending request
 				Thread.sleep(1000);
 			} catch (Exception e) {
-				logger.debug(String.format("Error when retrieve %s with id %s", item.getPropertyName(), deviceId), e);
+				logger.error(String.format("Error when retrieve %s with id %s", item.getPropertyName(), deviceId), e);
 			}
 		}
 	}
@@ -857,7 +880,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				audioVolumeValues.put(deviceId, new VolumeValueDTO(minValue, maxValue));
 			}
 		} catch (Exception e) {
-			logger.debug(String.format("Error when retrieve %s with id %s", ControllablePropertyEnum.VOLUME.getPropertyName(), deviceId), e);
+			logger.error(String.format("Error when retrieve %s with id %s", ControllablePropertyEnum.VOLUME.getPropertyName(), deviceId), e);
 		}
 	}
 
@@ -1098,6 +1121,25 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Gets the default number of threads based on the provided input or a default constant value.
+	 *
+	 * @return The default number of threads.
+	 */
+	private int getDefaultNumberOfThread() {
+		int result;
+		try {
+			if (StringUtils.isNotNullOrEmpty(numberThreads)) {
+				result = Integer.parseInt(numberThreads);
+			} else {
+				result = NaViSetAdministrator2SEConstant.DEFAULT_NUMBER_THREAD;
+			}
+		} catch (Exception e) {
+			result = NaViSetAdministrator2SEConstant.DEFAULT_NUMBER_THREAD;
+		}
+		return result;
 	}
 
 	/**
