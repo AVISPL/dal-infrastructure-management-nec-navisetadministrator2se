@@ -54,7 +54,7 @@ jobs:
         run: mvn pmd:check
       - id: getfilename
         run: echo "file=$(ls target/symphony-dal-infrastructure-management-nec-navisetadministrator2se-${{ needs.versiongenerate.outputs.version }}.jar)" >> $GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: NaViSetAdministrator2SECommunicator
           path: ${{ steps.getfilename.outputs.file }}
