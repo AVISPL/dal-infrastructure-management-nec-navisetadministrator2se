@@ -699,7 +699,6 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 			statistics.put(AdapterMetadataInfo.MONITORED_CYCLE_INTERVAL.getName(), String.valueOf(this.getMonitoringRate()));
 		} catch (NoSuchMethodError error) {
 			logger.warn("Unsupported feature: getMonitoringRate isn't available on current Cloud Connector version.", error);
-			statistics.put(AdapterMetadataInfo.MONITORED_CYCLE_INTERVAL.getName(), "N/A");
 		}
 		dynamicStatistics.put(AdapterMetadataInfo.LAST_MONITORING_CYCLE_DURATION.getName(), String.valueOf(this.lastMonitoringCycleDuration));
 		dynamicStatistics.put(AdapterMetadataInfo.MONITORED_DEVICES_TOTAL.getName(), String.valueOf(this.cachedMonitoringDevice.size()));
