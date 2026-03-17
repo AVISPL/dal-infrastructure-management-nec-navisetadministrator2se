@@ -4,10 +4,7 @@
 
 package com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se;
 
-import java.net.ConnectException;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,6 +44,7 @@ import com.avispl.symphony.api.dal.dto.monitor.aggregator.AggregatedDevice;
 import com.avispl.symphony.api.dal.monitor.Monitorable;
 import com.avispl.symphony.api.dal.monitor.aggregator.Aggregator;
 import com.avispl.symphony.dal.communicator.RestCommunicator;
+import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.AdapterMetadataInfo;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.ControllablePropertyEnum;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.MonitorPropertyEnum;
 import com.avispl.symphony.dal.infrastructure.management.nec.navisetadministrator2se.common.NaViSetAdministrator2SECommand;
@@ -131,7 +130,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				try {
 					TimeUnit.MILLISECONDS.sleep(500);
 				} catch (InterruptedException e) {
-					// Ignore for now
+					logger.info(String.format("Sleep for 0.5 second was interrupted with error message: %s", e.getMessage()), e);
 				}
 
 				if (!inProgress) {
@@ -146,17 +145,18 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				if (logger.isDebugEnabled()) {
 					logger.debug("Fetching other than aggregated device list");
 				}
-				long currentTimestamp = System.currentTimeMillis();
-				if (!flag && nextDevicesCollectionIterationTimestamp <= currentTimestamp) {
+				long startCycle = System.currentTimeMillis();
+				if (!flag && nextDevicesCollectionIterationTimestamp <= startCycle) {
 					populateDeviceDetails();
 					flag = true;
 				}
+				lastMonitoringCycleDuration = Math.max((System.currentTimeMillis() - startCycle) / 1000, 1L);
 
 				while (nextDevicesCollectionIterationTimestamp > System.currentTimeMillis()) {
 					try {
 						TimeUnit.MILLISECONDS.sleep(1000);
 					} catch (InterruptedException e) {
-						//
+						logger.info(String.format("Sleep for 0.5 second was interrupted with error message: %s", e.getMessage()));
 					}
 				}
 
@@ -164,7 +164,12 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 					break loop;
 				}
 				if (flag) {
-					nextDevicesCollectionIterationTimestamp = System.currentTimeMillis() + 30000;
+					try {
+						nextDevicesCollectionIterationTimestamp = System.currentTimeMillis() + (getMonitoringRate() * 60000L);
+					} catch (NoSuchMethodError error) {
+						nextDevicesCollectionIterationTimestamp = System.currentTimeMillis() + 60000L;
+						logger.error("Unsupported feature: getMonitoringRate isn't available on current Cloud Connector version.", error);
+					}
 					flag = false;
 				}
 
@@ -194,6 +199,14 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 	 * locks on the same shared resource by the same thread.
 	 */
 	private final ReentrantLock reentrantLock = new ReentrantLock();
+
+	/** Application configuration loaded from {@code version.properties}. */
+	private final Properties versionProperties = new Properties();
+
+	/** Device adapter instantiation timestamp. */
+	private final long adapterInitializationTimestamp = System.currentTimeMillis();
+
+	private long lastMonitoringCycleDuration = 1L;
 
 	/**
 	 * List of device ID
@@ -354,52 +367,6 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 
 	/**
 	 * {@inheritDoc}
-	 * <p>
-	 *
-	 * Check for available devices before retrieving the value
-	 * ping latency information to Symphony
-	 */
-	@Override
-	public int ping() throws Exception {
-		if (isInitialized()) {
-			long pingResultTotal = 0L;
-
-			for (int i = 0; i < this.getPingAttempts(); i++) {
-				long startTime = System.currentTimeMillis();
-
-				try (Socket puSocketConnection = new Socket(this.host, this.getPort())) {
-					puSocketConnection.setSoTimeout(this.getPingTimeout());
-					if (puSocketConnection.isConnected()) {
-						long pingResult = System.currentTimeMillis() - startTime;
-						pingResultTotal += pingResult;
-						if (this.logger.isTraceEnabled()) {
-							this.logger.trace(String.format("PING OK: Attempt #%s to connect to %s on port %s succeeded in %s ms", i + 1, host, this.getPort(), pingResult));
-						}
-					} else {
-						if (this.logger.isDebugEnabled()) {
-							logger.debug(String.format("PING DISCONNECTED: Connection to %s did not succeed within the timeout period of %sms", host, this.getPingTimeout()));
-						}
-						return this.getPingTimeout();
-					}
-				} catch (SocketTimeoutException | ConnectException tex) {
-					throw new SocketTimeoutException("Socket connection timed out");
-				} catch (UnknownHostException tex) {
-					throw new SocketTimeoutException("Socket connection timed out" + tex.getMessage());
-				} catch (Exception e) {
-					if (this.logger.isWarnEnabled()) {
-						this.logger.warn(String.format("PING TIMEOUT: Connection to %s did not succeed, UNKNOWN ERROR %s: ", host, e.getMessage()));
-					}
-					return this.getPingTimeout();
-				}
-			}
-			return Math.max(1, Math.toIntExact(pingResultTotal / this.getPingAttempts()));
-		} else {
-			throw new IllegalStateException("Cannot use device class without calling init() first");
-		}
-	}
-
-	/**
-	 * {@inheritDoc}
 	 */
 	@Override
 	public List<Statistics> getMultipleStatistics() throws Exception {
@@ -409,10 +376,13 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 				throw new FailedLoginException("Please enter valid password and username field.");
 			}
 			Map<String, String> statistics = new HashMap<>();
+			Map<String, String> dynamicStatistics = new HashMap<>();
 			ExtendedStatistics extendedStatistics = new ExtendedStatistics();
 			retrieveSystemInfo();
+			populateAdapterMetadata(statistics, dynamicStatistics);
 			populateSystemInfo(statistics);
 			extendedStatistics.setStatistics(statistics);
+			extendedStatistics.setDynamicStatistics(dynamicStatistics);
 			localExtendedStatistics = extendedStatistics;
 		} finally {
 			reentrantLock.unlock();
@@ -559,6 +529,11 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		if (logger.isDebugEnabled()) {
 			logger.debug("Internal init is called.");
 		}
+		try {
+			this.versionProperties.load(this.getClass().getResourceAsStream("/version.properties"));
+		} catch (IOException e) {
+			this.logger.error("Failed to load version properties file.", e);
+		}
 		executorService = Executors.newFixedThreadPool(1);
 		executorService.submit(deviceDataLoader = new NavisetDataLoader());
 		super.internalInit();
@@ -588,6 +563,7 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		deviceIdList.clear();
 		aggregatedDeviceList.clear();
 		cachedMonitoringDevice.clear();
+		this.versionProperties.clear();
 		super.internalDestroy();
 	}
 
@@ -704,6 +680,29 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		} catch (Exception e) {
 			throw new IllegalArgumentException("Error while retrieve system information" + e);
 		}
+	}
+
+	/**
+	 * Retrieves adapter metadata and populates the provided statistics and dynamic statistics.
+	 *
+	 * @param statistics the statistics map
+	 * @param dynamicStatistics the dynamic statistics map
+	 */
+	private void populateAdapterMetadata(Map<String, String> statistics, Map<String, String> dynamicStatistics) {
+		long adapterUptime = System.currentTimeMillis() - adapterInitializationTimestamp;
+
+		statistics.put(AdapterMetadataInfo.ADAPTER_BUILD_DATE.getName(), this.versionProperties.getProperty("adapter.build.date"));
+		statistics.put(AdapterMetadataInfo.ADAPTER_UPTIME.getName(), this.normalizeUptime(adapterUptime / 1000));
+		statistics.put(AdapterMetadataInfo.ADAPTER_UPTIME_MIN.getName(), String.valueOf(adapterUptime / (1000 * 60)));
+		statistics.put(AdapterMetadataInfo.ADAPTER_VERSION.getName(), this.versionProperties.getProperty("adapter.version"));
+		try {
+			statistics.put(AdapterMetadataInfo.MONITORED_CYCLE_INTERVAL.getName(), String.valueOf(this.getMonitoringRate()));
+		} catch (NoSuchMethodError error) {
+			logger.warn("Unsupported feature: getMonitoringRate isn't available on current Cloud Connector version.", error);
+			statistics.put(AdapterMetadataInfo.MONITORED_CYCLE_INTERVAL.getName(), "N/A");
+		}
+		dynamicStatistics.put(AdapterMetadataInfo.LAST_MONITORING_CYCLE_DURATION.getName(), String.valueOf(this.lastMonitoringCycleDuration));
+		dynamicStatistics.put(AdapterMetadataInfo.MONITORED_DEVICES_TOTAL.getName(), String.valueOf(this.cachedMonitoringDevice.size()));
 	}
 
 	/**
@@ -1289,5 +1288,36 @@ public class NaViSetAdministrator2SECommunicator extends RestCommunicator implem
 		advancedControllableProperty.setTimestamp(new Date());
 
 		return advancedControllableProperty;
+	}
+
+	/**
+	 * Uptime is received in seconds, need to normalize it and make it human-readable, like 1 d 5 hr 12 min 55 sec.
+	 * Incoming parameter is may have a decimal point, so in order to safely process this - it's rounded first.
+	 * We don't need to add a segment of time if it's 0.
+	 *
+	 * @param uptimeSeconds value in seconds
+	 * @return string value of format 'x d x hr x min x sec'
+	 */
+	private String normalizeUptime(long uptimeSeconds) {
+		StringBuilder normalizedUptime = new StringBuilder();
+
+		long seconds = uptimeSeconds % 60;
+		long minutes = uptimeSeconds % 3600 / 60;
+		long hours = uptimeSeconds % 86400 / 3600;
+		long days = uptimeSeconds / 86400;
+
+		if (days > 0) {
+			normalizedUptime.append(days).append(" d ");
+		}
+		if (hours > 0) {
+			normalizedUptime.append(hours).append(" hr ");
+		}
+		if (minutes > 0) {
+			normalizedUptime.append(minutes).append(" min ");
+		}
+		if (seconds > 0 || normalizedUptime.isEmpty()) {
+			normalizedUptime.append(seconds).append(" sec");
+		}
+		return normalizedUptime.toString().trim();
 	}
 }
