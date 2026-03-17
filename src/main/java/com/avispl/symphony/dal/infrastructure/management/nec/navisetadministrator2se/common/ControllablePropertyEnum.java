@@ -70,7 +70,7 @@ public enum ControllablePropertyEnum {
 	 * @return The ChangedMonitorPropertyEnum with the specified default name, or null if not found.
 	 */
 	public static ControllablePropertyEnum getByDefaultName(String name) {
-		Optional<ControllablePropertyEnum> property = Arrays.stream(ControllablePropertyEnum.values()).filter(item -> item.getPropertyName().equalsIgnoreCase(name)).findFirst();
+		Optional<ControllablePropertyEnum> property = Arrays.stream(values()).filter(item -> item.getPropertyName().equalsIgnoreCase(name)).findFirst();
 		return property.orElse(null);
 	}
 }
