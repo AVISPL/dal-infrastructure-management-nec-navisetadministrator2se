@@ -180,7 +180,7 @@ public enum MonitorPropertyEnum {
 	 * @return The ControllablePropertyEnum with the specified default name, or null if not found.
 	 */
 	public static MonitorPropertyEnum getByDefaultName(String name) {
-		Optional<MonitorPropertyEnum> property = Arrays.stream(MonitorPropertyEnum.values()).filter(item -> item.getDefaultName().equalsIgnoreCase(name)).findFirst();
+		Optional<MonitorPropertyEnum> property = Arrays.stream(values()).filter(item -> item.getDefaultName().equalsIgnoreCase(name)).findFirst();
 		return property.orElse(null);
 	}
 }

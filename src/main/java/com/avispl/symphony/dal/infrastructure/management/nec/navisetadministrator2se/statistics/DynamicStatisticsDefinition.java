@@ -62,7 +62,7 @@ public enum DynamicStatisticsDefinition {
 	 * @return The DynamicStatisticsDefinition with the specified name, or null if not found.
 	 */
 	public static DynamicStatisticsDefinition getByDefaultName(String name) {
-		Optional<DynamicStatisticsDefinition> property = Arrays.stream(DynamicStatisticsDefinition.values()).filter(item -> item.getDefaultName().equalsIgnoreCase(name)).findFirst();
+		Optional<DynamicStatisticsDefinition> property = Arrays.stream(values()).filter(item -> item.getDefaultName().equalsIgnoreCase(name)).findFirst();
 		return property.orElse(null);
 	}
 }
